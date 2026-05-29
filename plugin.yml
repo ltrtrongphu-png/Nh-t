@@ -1,0 +1,9 @@
+name: ShopPlugin
+version: 1.0
+main: com.trongphu.shopplugin.ShopPlugin
+api-version: '1.21'
+commands:
+  shop:
+    description: Mở cửa hàng ảo của Server.
+    permission: shopplugin.use
+    usage: /shop
