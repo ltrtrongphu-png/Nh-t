@@ -42,7 +42,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("shop").setTabCompleter(this);
         
-        // Sửa dòng thông báo hiển thị thương hiệu của bạn khi mở Server
         getLogger().info("========================================");
         getLogger().info(" LegendaryShop Premium v1.0 - Kich Hoat!");
         getLogger().info("========================================");
@@ -170,28 +169,39 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
+        // Kiểm tra tiêu đề menu có khớp không
         if (event.getView().getTitle().equals(shopTitle)) {
-            event.setCancelled(true);
+            event.setCancelled(true); // Chặn không cho người chơi lấy đồ ra ngoài
 
             if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return;
+            
             Player player = (Player) event.getWhoClicked();
-            Material clickedMat = event.getCurrentItem().getType();
+            int clickedSlot = event.getSlot(); // Lấy vị trí ô vừa bấm
 
             FileConfiguration config = getConfig();
+            if (config.getConfigurationSection("items") == null) return;
+
+            // Vòng lặp quét qua danh sách vật phẩm trong file cấu hình
             for (String key : config.getConfigurationSection("items").getKeys(false)) {
                 String path = "items." + key + ".";
-                Material targetMat = Material.matchMaterial(config.getString(path + "material"));
-                double price = config.getDouble(path + "price");
+                int targetSlot = config.getInt(path + "slot");
 
-                if (clickedMat == targetMat) {
+                // Nếu ô bấm trùng khớp hoàn toàn với ô cấu hình
+                if (clickedSlot == targetSlot) {
+                    Material targetMat = Material.matchMaterial(config.getString(path + "material"));
+                    if (targetMat == null) return;
+
+                    double price = config.getDouble(path + "price");
+
+                    // Kiểm tra tiền của người chơi qua hệ thống Vault Economy
                     if (econ.getBalance(player) >= price) {
-                        econ.withdrawPlayer(player, price);
-                        player.getInventory().addItem(new ItemStack(targetMat, 1));
-                        player.sendMessage(ChatColor.GREEN + "[LegendaryShop] Mua thành công!");
+                        econ.withdrawPlayer(player, price); // Trừ tiền
+                        player.getInventory().addItem(new ItemStack(targetMat, 1)); // Phát đồ
+                        player.sendMessage(ChatColor.GREEN + "[LegendaryShop] Mua thành công vật phẩm!");
                     } else {
-                        player.sendMessage(ChatColor.RED + "[LegendaryShop] Bạn không có đủ tiền!");
+                        player.sendMessage(ChatColor.RED + "[LegendaryShop] Bạn không có đủ tiền để mua vật phẩm này!");
                     }
-                    player.closeInventory();
+                    player.closeInventory(); // Đóng giao diện sau khi click
                     return;
                 }
             }
