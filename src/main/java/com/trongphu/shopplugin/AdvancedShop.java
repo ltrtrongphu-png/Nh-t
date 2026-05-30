@@ -28,19 +28,17 @@ public final class AdvancedShop extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
-        // Khởi tạo file cấu hình config.yml mặc định
         saveDefaultConfig();
         loadShopConfig();
 
-        // Kết nối với hệ thống tiền tệ Vault
         if (!setupEconomy()) {
-            getLogger().severe("Khong tim thay plugin Vault! Vo hieu hoa plugin Shop.");
+            getLogger().severe("Khong tim thay Vault! Vo hieu hoa plugin.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("AdvancedShop v2.0 (1.21.4) da kich hoat!");
+        getLogger().info("AdvancedShop v2.5 (Admin Update) da san sang!");
     }
 
     private void loadShopConfig() {
@@ -60,14 +58,89 @@ public final class AdvancedShop extends JavaPlugin implements Listener {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (command.getName().equalsIgnoreCase("shop") && sender instanceof Player) {
-            openShop((Player) sender);
-            return true;
-        }
-        if (command.getName().equalsIgnoreCase("shopreload") && sender.hasPermission("advancedshop.admin")) {
-            loadShopConfig();
-            sender.sendMessage(ChatColor.GREEN + "[Shop] Đã tải lại file config.yml thành công!");
-            return true;
+        if (command.getName().equalsIgnoreCase("shop")) {
+            
+            // XỬ LÝ LỆNH CHO ADMIN (Nếu gõ từ 1 tham số trở lên, ví dụ: /shop reload hoặc /shop admin...)
+            if (args.length > 0) {
+                
+                // Lệnh phụ 1: /shop reload
+                if (args[0].equalsIgnoreCase("reload")) {
+                    if (!sender.hasPermission("advancedshop.admin")) {
+                        sender.sendMessage(ChatColor.RED + "Bạn không có quyền thực hiện lệnh này!");
+                        return true;
+                    }
+                    loadShopConfig();
+                    sender.sendMessage(ChatColor.GREEN + "[Shop] Đã tải lại cấu hình config.yml!");
+                    return true;
+                }
+
+                // Lệnh phụ 2: /shop admin ...
+                if (args[0].equalsIgnoreCase("admin")) {
+                    if (!sender.hasPermission("advancedshop.admin")) {
+                        sender.sendMessage(ChatColor.RED + "Bạn không có quyền Admin của Shop!");
+                        return true;
+                    }
+
+                    // Hướng dẫn bảng lệnh Admin khi gõ sai cú pháp
+                    if (args.length < 4) {
+                        sender.sendMessage(ChatColor.RED + "Cách dùng lệnh Admin:");
+                        sender.sendMessage(ChatColor.YELLOW + "/shop admin add [tên_người_chơi] [số_tiền] §7- Cộng tiền");
+                        sender.sendMessage(ChatColor.YELLOW + "/shop admin remove [tên_người_chơi] [số_tiền] §7- Trừ tiền");
+                        sender.sendMessage(ChatColor.YELLOW + "/shop admin set [tên_người_chơi] [số_tiền] §7- Đặt lại tiền");
+                        return true;
+                    }
+
+                    String action = args[1];
+                    Player target = Bukkit.getPlayer(args[2]);
+                    
+                    if (target == null) {
+                        sender.sendMessage(ChatColor.RED + "Không tìm thấy người chơi này đang online!");
+                        return true;
+                    }
+
+                    double amount;
+                    try {
+                        amount = Double.parseDouble(args[3]);
+                    } catch (NumberFormatException e) {
+                        sender.sendMessage(ChatColor.RED + "Số tiền nhập vào phải là một con số hợp lệ!");
+                        return true;
+                    }
+
+                    // Thực hiện các hành động quản lý tiền tệ của Admin
+                    if (action.equalsIgnoreCase("add")) {
+                        econ.depositPlayer(target, amount);
+                        sender.sendMessage(ChatColor.GREEN + "Đã cộng " + amount + " xu vào tài khoản của " + target.getName());
+                        target.sendMessage(ChatColor.GREEN + "Bạn được Admin cộng " + amount + " xu vào tài khoản.");
+                    } else if (action.equalsIgnoreCase("remove")) {
+                        econ.withdrawPlayer(target, amount);
+                        sender.sendMessage(ChatColor.YELLOW + "Đã trừ " + amount + " xu từ tài khoản của " + target.getName());
+                        target.sendMessage(ChatColor.RED + "Bạn đã bị Admin trừ " + amount + " xu.");
+                    } else if (action.equalsIgnoreCase("set")) {
+                        double currentBal = econ.getBalance(target);
+                        econ.withdrawPlayer(target, currentBal); // Đưa về 0
+                        econ.depositPlayer(target, amount);     // Đặt mức tiền mới
+                        sender.sendMessage(ChatColor.GREEN + "Đã đặt lại số dư của " + target.getName() + " thành " + amount + " xu.");
+                        target.sendMessage(ChatColor.GOLD + "Số dư tài khoản của bạn đã được Admin đặt lại thành " + amount + " xu.");
+                    } else {
+                        sender.sendMessage(ChatColor.RED + "Hành động không hợp lệ! Chỉ dùng: add, remove, hoặc set.");
+                    }
+                    return true;
+                }
+            }
+
+            // XỬ LÝ LỆNH CHO NGƯỜI CHƠI THƯỜNG (Nếu chỉ gõ trơ trọi lệnh /shop)
+            if (sender instanceof Player) {
+                Player player = (Player) sender;
+                if (player.hasPermission("advancedshop.use")) {
+                    openShop(player);
+                } else {
+                    player.sendMessage(ChatColor.RED + "Bạn không có quyền mở cửa hàng ảo!");
+                }
+                return true;
+            } else {
+                sender.sendMessage("Lệnh mở giao diện chỉ áp dụng cho người chơi thực tế!");
+                return true;
+            }
         }
         return false;
     }
@@ -105,7 +178,7 @@ public final class AdvancedShop extends JavaPlugin implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (event.getView().getTitle().equals(shopTitle)) {
-            event.setCancelled(true); // Chống lấy đồ ra khỏi GUI (Anti-Dupe)
+            event.setCancelled(true);
 
             if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return;
             Player player = (Player) event.getWhoClicked();
@@ -118,11 +191,10 @@ public final class AdvancedShop extends JavaPlugin implements Listener {
                 double price = config.getDouble(path + "price");
 
                 if (clickedMat == targetMat) {
-                    // Kiểm tra và trừ tiền qua Vault
                     if (econ.getBalance(player) >= price) {
                         econ.withdrawPlayer(player, price);
                         player.getInventory().addItem(new ItemStack(targetMat, 1));
-                        player.sendMessage(ChatColor.GREEN + "[Shop] Bạn đã mua thành công 1 " + event.getCurrentItem().getItemMeta().getDisplayName() + ChatColor.GREEN + " với giá " + price + " xu!");
+                        player.sendMessage(ChatColor.GREEN + "[Shop] Bạn đã mua thành công 1 viên " + event.getCurrentItem().getItemMeta().getDisplayName() + ChatColor.GREEN + " với giá " + price + " xu!");
                     } else {
                         player.sendMessage(ChatColor.RED + "[Shop] Bạn không có đủ tiền! Cần thêm: " + (price - econ.getBalance(player)) + " xu.");
                     }
