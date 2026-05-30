@@ -1,0 +1,13 @@
+name: AdvancedShop
+version: 2.0
+main: com.trongphu.shopplugin.AdvancedShop
+api-version: '1.21'
+depend: [Vault]
+commands:
+  shop:
+    description: Mở menu cửa hàng nâng cao.
+    permission: advancedshop.use
+    usage: /shop
+  shopreload:
+    description: Tải lại cấu hình plugin.
+    permission: advancedshop.admin
