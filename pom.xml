@@ -40,14 +40,18 @@
         </dependency>
     </dependencies>
 
-    <build>
-        <defaultGoal>clean package</defaultGoal>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-        </resources>
+<build>
+    <finalName>${project.artifactId}</finalName>
+    <defaultGoal>clean package</defaultGoal>
+    <resources>
+        <resource>
+            <directory>src/main/resources</directory>
+            <filtering>false</filtering>
+            <includes>
+                <include>**/*</include>
+            </includes>
+        </resource>
+    </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
