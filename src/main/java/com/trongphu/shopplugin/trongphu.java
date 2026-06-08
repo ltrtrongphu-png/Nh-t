@@ -315,10 +315,20 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                             
                             // Nếu là spawner, dùng SmartSpawner command
                             if (mobType != null && !mobType.isEmpty()) {
-                                String command = "smartspawner give " + player.getName() + " " + mobType + " 1";
-                                getLogger().info("[LegendaryShop] Executing: " + command);
-                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-                                player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã nhận spawner!");
+                                try {
+                                    // Delay 1 tick để ensure player loaded
+                                    Bukkit.getScheduler().scheduleSyncDelayedTask(this, () -> {
+                                        String command = "ss give spawner " + player.getName() + " " + mobType + " 1";
+                                        getLogger().warning("[LegendaryShop DEBUG] Command: " + command);
+                                        boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                                        getLogger().warning("[LegendaryShop DEBUG] Command executed: " + result);
+                                    }, 1L);
+                                    
+                                    player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã nhận spawner!");
+                                } catch (Exception e) {
+                                    getLogger().severe("[LegendaryShop ERROR] " + e.getMessage());
+                                    player.sendMessage(ChatColor.RED + "✗ Lỗi khi cấp spawner! Liên hệ admin.");
+                                }
                             } else {
                                 // Item thường
                                 player.getInventory().addItem(new ItemStack(mat, 1));
@@ -379,11 +389,15 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
     private void removeShards(Player player, double amount) {
         try {
             if (Bukkit.getPluginManager().getPlugin("xShards") != null) {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), 
-                    "shards take " + player.getName() + " " + (int)amount);
+                String command = "shards take " + player.getName() + " " + (int)amount;
+                boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                getLogger().warning("[LegendaryShop] Shards command - Executed: " + result + ", Command: " + command);
+            } else {
+                getLogger().warning("[LegendaryShop] xShards plugin not found!");
             }
         } catch (Exception e) {
-            getLogger().warning("Lỗi khi trừ shards: " + e.getMessage());
+            getLogger().severe("[LegendaryShop] Error removing shards: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
