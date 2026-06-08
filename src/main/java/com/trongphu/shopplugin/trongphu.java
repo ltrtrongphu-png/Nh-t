@@ -315,9 +315,10 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                             
                             // Nếu là spawner, dùng SmartSpawner command
                             if (mobType != null && !mobType.isEmpty()) {
-                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), 
-                                    "smartspawner give " + player.getName() + " " + mobType + " 1");
-                                player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + (int)price + " 💎");
+                                String command = "smartspawner give " + player.getName() + " " + mobType + " 1";
+                                getLogger().info("[LegendaryShop] Executing: " + command);
+                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                                player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã nhận spawner!");
                             } else {
                                 // Item thường
                                 player.getInventory().addItem(new ItemStack(mat, 1));
