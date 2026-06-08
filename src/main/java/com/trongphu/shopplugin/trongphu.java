@@ -111,18 +111,18 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
                 if (action.equalsIgnoreCase("add")) {
                     econ.depositPlayer(target, amount);
-                    sender.sendMessage(ChatColor.GREEN + "✓ Đã cộng " + amount + " xu cho " + target.getName());
-                    target.sendMessage(ChatColor.GREEN + "Admin đã cộng " + amount + " xu cho bạn!");
+                    sender.sendMessage(ChatColor.GREEN + "✓ Đã cộng " + amount + " 💲 cho " + target.getName());
+                    target.sendMessage(ChatColor.GREEN + "Admin đã cộng " + amount + " 💲 cho bạn!");
                 } else if (action.equalsIgnoreCase("remove")) {
                     econ.withdrawPlayer(target, amount);
-                    sender.sendMessage(ChatColor.YELLOW + "✓ Đã trừ " + amount + " xu của " + target.getName());
-                    target.sendMessage(ChatColor.RED + "Admin đã trừ " + amount + " xu từ bạn!");
+                    sender.sendMessage(ChatColor.YELLOW + "✓ Đã trừ " + amount + " 💲 của " + target.getName());
+                    target.sendMessage(ChatColor.RED + "Admin đã trừ " + amount + " 💲 từ bạn!");
                 } else if (action.equalsIgnoreCase("set")) {
                     double currentBal = econ.getBalance(target);
                     econ.withdrawPlayer(target, currentBal);
                     econ.depositPlayer(target, amount);
-                    sender.sendMessage(ChatColor.GREEN + "✓ Đã đặt tiền của " + target.getName() + " = " + amount + " xu");
-                    target.sendMessage(ChatColor.GREEN + "Admin đã đặt tiền của bạn thành " + amount + " xu!");
+                    sender.sendMessage(ChatColor.GREEN + "✓ Đã đặt tiền của " + target.getName() + " = " + amount + " 💲");
+                    target.sendMessage(ChatColor.GREEN + "Admin đã đặt tiền của bạn thành " + amount + " 💲!");
                 } else {
                     sender.sendMessage(ChatColor.RED + "Action không hợp lệ!");
                 }
@@ -179,7 +179,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                     ItemStack item = new ItemStack(mat);
                     ItemMeta meta = item.getItemMeta();
                     if (meta != null) {
-                        meta.setDisplayName(displayName);
+                        meta.setDisplayName(displayName.replaceAll("\"", ""));
                         meta.setLore(Arrays.asList(lore));
                         item.setItemMeta(meta);
                     }
@@ -228,9 +228,9 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                     ItemStack item = new ItemStack(mat);
                     ItemMeta meta = item.getItemMeta();
                     if (meta != null) {
-                        meta.setDisplayName(displayName);
+                        meta.setDisplayName(displayName.replaceAll("\"", ""));
                         List<String> lore = new ArrayList<>();
-                        lore.add(ChatColor.GOLD + "Giá: " + price + " xu");
+                        lore.add(ChatColor.GREEN + "Giá: " + price + " 💲");
                         meta.setLore(lore);
                         item.setItemMeta(meta);
                     }
@@ -302,9 +302,9 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         if (econ.getBalance(player) >= price) {
                             econ.withdrawPlayer(player, price);
                             player.getInventory().addItem(new ItemStack(mat, 1));
-                            player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + price + " xu");
+                            player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + price + " 💲");
                         } else {
-                            player.sendMessage(ChatColor.RED + "✗ Bạn không có đủ tiền! Cần " + price + " xu");
+                            player.sendMessage(ChatColor.RED + "✗ Bạn không có đủ tiền! Cần " + price + " 💲");
                         }
                         player.closeInventory();
                     }
