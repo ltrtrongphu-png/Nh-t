@@ -51,7 +51,7 @@ categories:
         price: 8.0
       '12':
         material: DRAGON_BREATH
-        name: 'Dragon´s Breath'
+        name: 'Dragon Breath'
         price: 1000.0
       '13':
         material: END_ROD
@@ -59,11 +59,11 @@ categories:
         price: 100.0
       '14':
         material: CHORUS_FRUIT
-        name: 'Chrous Fruit'
+        name: 'Chorus Fruit'
         price: 108.0
       '15':
         material: POPPED_CHORUS_FRUIT
-        name: 'Poppeed Chorus Fruit'
+        name: 'Popped Chorus Fruit'
         price: 24.0
       '16':
         material: SHULKER_SHELL
@@ -73,6 +73,7 @@ categories:
         material: SHULKER_BOX
         name: 'Shulker Box'
         price: 800.0
+
   nether:
     title: 'Nether Shop'
     size: 27
@@ -113,6 +114,7 @@ categories:
         material: CRYING_OBSIDIAN
         name: 'Crying Obsidian'
         price: 150.0
+
   gear:
     title: 'Gear Shop'
     size: 27
@@ -123,7 +125,7 @@ categories:
         price: 100.0
       '10':
         material: END_CRYSTAL
-        name: 'End Crystl'
+        name: 'End Crystal'
         price: 350.0
       '11':
         material: RESPAWN_ANCHOR
@@ -153,6 +155,7 @@ categories:
         material: TIPPED_ARROW
         name: 'Tipped Arrow'
         price: 500.0
+
   food:
     title: 'Food Shop'
     size: 27
@@ -193,7 +196,38 @@ categories:
         material: GOLDEN_APPLE
         name: 'Golden Apple'
         price: 350.0
+
   spawner:
     title: 'Spawner Shop'
-    size: 27
-    items: {}
+    size: 36
+    items:
+      '9':
+        material: SPAWNER
+        name: 'Zombie Spawner'
+        price: 5000.0
+        mob-type: zombie
+      '10':
+        material: SPAWNER
+        name: 'Skeleton Spawner'
+        price: 5000.0
+        mob-type: skeleton
+      '11':
+        material: SPAWNER
+        name: 'Creeper Spawner'
+        price: 5500.0
+        mob-type: creeper
+      '12':
+        material: SPAWNER
+        name: 'Spider Spawner'
+        price: 4500.0
+        mob-type: spider
+      '13':
+        material: SPAWNER
+        name: 'Enderman Spawner'
+        price: 6000.0
+        mob-type: enderman
+      '14':
+        material: SPAWNER
+        name: 'Blaze Spawner'
+        price: 7000.0
+        mob-type: blaze
