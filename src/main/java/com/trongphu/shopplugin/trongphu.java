@@ -18,190 +18,296 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public final class trongphu extends JavaPlugin implements Listener, TabCompleter {
 
     private static Economy econ = null;
-    private String shopTitle;
-    private int shopSize;
 
     @Override
     public void onEnable() {
+        // Lưu config mặc định nếu chưa tồn tại
         saveDefaultConfig();
-        loadShopConfig();
 
+        // Setup Vault Economy
         if (!setupEconomy()) {
             getLogger().severe("Khong tim thay Vault! Vo hieu hoa plugin.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
+        // Register events & commands
         getServer().getPluginManager().registerEvents(this, this);
+        getCommand("shop").setExecutor(this);
         getCommand("shop").setTabCompleter(this);
-        
-        getLogger().info("========================================");
-        getLogger().info(" LegendaryShop Premium v1.0 - Kich Hoat!");
-        getLogger().info("========================================");
-    }
 
-    private void loadShopConfig() {
-        reloadConfig();
-        FileConfiguration config = getConfig();
-        shopTitle = ChatColor.translateAlternateColorCodes('&', config.getString("shop-title", "&6Cửa Hàng"));
-        shopSize = config.getInt("shop-size", 27);
+        getLogger().info("========================================");
+        getLogger().info(" LegendaryShop Premium v2.6 - Kich Hoat!");
+        getLogger().info("========================================");
     }
 
     private boolean setupEconomy() {
-        if (getServer().getPluginManager().getPlugin("Vault") == null) return false;
+        if (getServer().getPluginManager().getPlugin("Vault") == null) {
+            return false;
+        }
         RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
-        if (rsp == null) return false;
+        if (rsp == null) {
+            return false;
+        }
         econ = rsp.getProvider();
         return econ != null;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (command.getName().equalsIgnoreCase("shop")) {
+        if (!command.getName().equalsIgnoreCase("shop")) {
+            return false;
+        }
 
-            if (args.length > 0) {
-                if (args[0].equalsIgnoreCase("reload")) {
-                    if (!sender.hasPermission("legendaryshop.admin")) {
-                        sender.sendMessage(ChatColor.RED + "Bạn không có quyền!");
-                        return true;
-                    }
-                    loadShopConfig();
-                    sender.sendMessage(ChatColor.GREEN + "[LegendaryShop] Đã tải lại cấu hình config.yml!");
+        // Xử lý subcommands
+        if (args.length > 0) {
+            // /shop reload
+            if (args[0].equalsIgnoreCase("reload")) {
+                if (!sender.hasPermission("legendaryshop.admin")) {
+                    sender.sendMessage(ChatColor.RED + "Bạn không có quyền!");
                     return true;
                 }
-
-                if (args[0].equalsIgnoreCase("admin")) {
-                    if (!sender.hasPermission("legendaryshop.admin")) {
-                        sender.sendMessage(ChatColor.RED + "Bạn không có quyền Admin!");
-                        return true;
-                    }
-
-                    if (args.length < 4) {
-                        sender.sendMessage(ChatColor.RED + "Cú pháp Admin:");
-                        sender.sendMessage(ChatColor.YELLOW + "/shop admin add [tên] [số_tiền]");
-                        sender.sendMessage(ChatColor.YELLOW + "/shop admin remove [tên] [số_tiền]");
-                        sender.sendMessage(ChatColor.YELLOW + "/shop admin set [tên] [số_tiền]");
-                        return true;
-                    }
-
-                    String action = args[1];
-                    Player target = Bukkit.getPlayer(args[2]);
-                    if (target == null) {
-                        sender.sendMessage(ChatColor.RED + "Người chơi không online!");
-                        return true;
-                    }
-
-                    double amount;
-                    try {
-                        amount = Double.parseDouble(args[3]);
-                    } catch (NumberFormatException e) {
-                        sender.sendMessage(ChatColor.RED + "Số tiền không hợp lệ!");
-                        return true;
-                    }
-
-                    if (action.equalsIgnoreCase("add")) {
-                        econ.depositPlayer(target, amount);
-                        sender.sendMessage(ChatColor.GREEN + "Đã cộng " + amount + " xu cho " + target.getName());
-                    } else if (action.equalsIgnoreCase("remove")) {
-                        econ.withdrawPlayer(target, amount);
-                        sender.sendMessage(ChatColor.YELLOW + "Đã trừ " + amount + " xu của " + target.getName());
-                    } else if (action.equalsIgnoreCase("set")) {
-                        double currentBal = econ.getBalance(target);
-                        econ.withdrawPlayer(target, currentBal);
-                        econ.depositPlayer(target, amount);
-                        sender.sendMessage(ChatColor.GREEN + "Đã đặt tiền của " + target.getName() + " thành " + amount + " xu.");
-                    }
-                    return true;
-                }
+                reloadConfig();
+                sender.sendMessage(ChatColor.GREEN + "[LegendaryShop] Đã tải lại cấu hình!");
+                return true;
             }
 
-            if (sender instanceof Player) {
-                Player player = (Player) sender;
-                if (player.hasPermission("legendaryshop.use")) {
-                    openShop(player);
-                } else {
-                    player.sendMessage(ChatColor.RED + "Bạn không có quyền mở shop!");
+            // /shop admin add/remove/set <player> <amount>
+            if (args[0].equalsIgnoreCase("admin")) {
+                if (!sender.hasPermission("legendaryshop.admin")) {
+                    sender.sendMessage(ChatColor.RED + "Bạn không có quyền Admin!");
+                    return true;
                 }
-                return true;
-            } else {
-                sender.sendMessage("Lệnh mở giao diện chỉ dành cho người chơi.");
+
+                if (args.length < 4) {
+                    sender.sendMessage(ChatColor.YELLOW + "========== ADMIN COMMANDS ==========");
+                    sender.sendMessage(ChatColor.GREEN + "/shop admin add <player> <amount>");
+                    sender.sendMessage(ChatColor.GREEN + "/shop admin remove <player> <amount>");
+                    sender.sendMessage(ChatColor.GREEN + "/shop admin set <player> <amount>");
+                    sender.sendMessage(ChatColor.YELLOW + "===================================");
+                    return true;
+                }
+
+                String action = args[1];
+                Player target = Bukkit.getPlayer(args[2]);
+
+                if (target == null) {
+                    sender.sendMessage(ChatColor.RED + "Người chơi không online!");
+                    return true;
+                }
+
+                double amount;
+                try {
+                    amount = Double.parseDouble(args[3]);
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(ChatColor.RED + "Số tiền không hợp lệ!");
+                    return true;
+                }
+
+                if (action.equalsIgnoreCase("add")) {
+                    econ.depositPlayer(target, amount);
+                    sender.sendMessage(ChatColor.GREEN + "✓ Đã cộng " + amount + " xu cho " + target.getName());
+                    target.sendMessage(ChatColor.GREEN + "Admin đã cộng " + amount + " xu cho bạn!");
+                } else if (action.equalsIgnoreCase("remove")) {
+                    econ.withdrawPlayer(target, amount);
+                    sender.sendMessage(ChatColor.YELLOW + "✓ Đã trừ " + amount + " xu của " + target.getName());
+                    target.sendMessage(ChatColor.RED + "Admin đã trừ " + amount + " xu từ bạn!");
+                } else if (action.equalsIgnoreCase("set")) {
+                    double currentBal = econ.getBalance(target);
+                    econ.withdrawPlayer(target, currentBal);
+                    econ.depositPlayer(target, amount);
+                    sender.sendMessage(ChatColor.GREEN + "✓ Đã đặt tiền của " + target.getName() + " = " + amount + " xu");
+                    target.sendMessage(ChatColor.GREEN + "Admin đã đặt tiền của bạn thành " + amount + " xu!");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "Action không hợp lệ!");
+                }
                 return true;
             }
         }
-        return false;
+
+        // /shop - Mở main menu
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "Lệnh này chỉ dành cho người chơi!");
+            return true;
+        }
+
+        Player player = (Player) sender;
+        if (!player.hasPermission("legendaryshop.use")) {
+            player.sendMessage(ChatColor.RED + "Bạn không có quyền mở cửa hàng!");
+            return true;
+        }
+
+        openMainMenu(player);
+        return true;
     }
 
-    public void openShop(Player player) {
-        Inventory inv = Bukkit.createInventory(null, shopSize, shopTitle);
+    // Mở menu chính
+    private void openMainMenu(Player player) {
         FileConfiguration config = getConfig();
 
-        if (config.getConfigurationSection("items") == null) return;
+        if (!config.contains("main-menu")) {
+            player.sendMessage(ChatColor.RED + "Cấu hình main-menu không tồn tại!");
+            return;
+        }
 
-        for (String key : config.getConfigurationSection("items").getKeys(false)) {
-            String path = "items." + key + ".";
-            Material mat = Material.matchMaterial(config.getString(path + "material"));
-            int slot = config.getInt(path + "slot");
+        String title = ChatColor.translateAlternateColorCodes('&', 
+            config.getString("main-menu.title", "&6Shop"));
+        int size = config.getInt("main-menu.size", 27);
 
-            if (mat != null && slot >= 0 && slot < shopSize) {
-                ItemStack item = new ItemStack(mat);
-                ItemMeta meta = item.getItemMeta();
-                if (meta != null) {
-                    meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', config.getString(path + "display-name")));
-                    List<String> lore = new ArrayList<>();
-                    for (String s : config.getStringList(path + "lore")) {
-                        lore.add(ChatColor.translateAlternateColorCodes('&', s));
+        Inventory inv = Bukkit.createInventory(null, size, title);
+
+        if (config.contains("main-menu.items")) {
+            for (String key : config.getConfigurationSection("main-menu.items").getKeys(false)) {
+                String path = "main-menu.items." + key + ".";
+
+                try {
+                    int slot = Integer.parseInt(key);
+                    String materialName = config.getString(path + "material");
+                    String displayName = ChatColor.translateAlternateColorCodes('&', 
+                        config.getString(path + "name", "Item"));
+                    String lore = ChatColor.translateAlternateColorCodes('&', 
+                        config.getString(path + "lore", ""));
+
+                    Material mat = Material.matchMaterial(materialName);
+                    if (mat == null) continue;
+
+                    ItemStack item = new ItemStack(mat);
+                    ItemMeta meta = item.getItemMeta();
+                    if (meta != null) {
+                        meta.setDisplayName(displayName);
+                        meta.setLore(Arrays.asList(lore));
+                        item.setItemMeta(meta);
                     }
-                    meta.setLore(lore);
-                    item.setItemMeta(meta);
+
+                    if (slot >= 0 && slot < size) {
+                        inv.setItem(slot, item);
+                    }
+                } catch (NumberFormatException ignored) {
                 }
-                inv.setItem(slot, item);
             }
         }
+
+        player.openInventory(inv);
+    }
+
+    // Mở category shop
+    private void openCategoryShop(Player player, String category) {
+        FileConfiguration config = getConfig();
+        String path = "categories." + category + ".";
+
+        if (!config.contains(path)) {
+            player.sendMessage(ChatColor.RED + "Category '" + category + "' không tồn tại!");
+            return;
+        }
+
+        String title = ChatColor.translateAlternateColorCodes('&', 
+            config.getString(path + "title", "&6" + category));
+        int size = config.getInt(path + "size", 27);
+
+        Inventory inv = Bukkit.createInventory(null, size, title);
+
+        if (config.contains(path + "items")) {
+            for (String key : config.getConfigurationSection(path + "items").getKeys(false)) {
+                String itemPath = path + "items." + key + ".";
+
+                try {
+                    int slot = Integer.parseInt(key);
+                    String materialName = config.getString(itemPath + "material");
+                    String displayName = ChatColor.translateAlternateColorCodes('&', 
+                        config.getString(itemPath + "name", "Item"));
+                    double price = config.getDouble(itemPath + "price", 0);
+
+                    Material mat = Material.matchMaterial(materialName);
+                    if (mat == null) continue;
+
+                    ItemStack item = new ItemStack(mat);
+                    ItemMeta meta = item.getItemMeta();
+                    if (meta != null) {
+                        meta.setDisplayName(displayName);
+                        List<String> lore = new ArrayList<>();
+                        lore.add(ChatColor.GOLD + "Giá: " + price + " xu");
+                        meta.setLore(lore);
+                        item.setItemMeta(meta);
+                    }
+
+                    if (slot >= 0 && slot < size) {
+                        inv.setItem(slot, item);
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+
         player.openInventory(inv);
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        // Kiểm tra tiêu đề menu có khớp không
-        if (event.getView().getTitle().equals(shopTitle)) {
-            event.setCancelled(true); // Chặn không cho người chơi lấy đồ ra ngoài
+        Player player = (Player) event.getWhoClicked();
+        String title = event.getView().getTitle();
 
-            if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return;
-            
-            Player player = (Player) event.getWhoClicked();
-            int clickedSlot = event.getSlot(); // Lấy vị trí ô vừa bấm
+        // Kiểm tra main menu
+        String mainTitle = ChatColor.translateAlternateColorCodes('&', 
+            getConfig().getString("main-menu.title", "&6Shop"));
+        
+        if (title.equals(mainTitle)) {
+            event.setCancelled(true);
 
+            if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) {
+                return;
+            }
+
+            int slot = event.getSlot();
             FileConfiguration config = getConfig();
-            if (config.getConfigurationSection("items") == null) return;
 
-            // Vòng lặp quét qua danh sách vật phẩm trong file cấu hình
-            for (String key : config.getConfigurationSection("items").getKeys(false)) {
-                String path = "items." + key + ".";
-                int targetSlot = config.getInt(path + "slot");
+            if (config.contains("main-menu.items." + slot)) {
+                String category = config.getString("main-menu.items." + slot + ".category");
+                if (category != null) {
+                    openCategoryShop(player, category);
+                }
+            }
+            return;
+        }
 
-                // Nếu ô bấm trùng khớp hoàn toàn với ô cấu hình
-                if (clickedSlot == targetSlot) {
-                    Material targetMat = Material.matchMaterial(config.getString(path + "material"));
-                    if (targetMat == null) return;
+        // Kiểm tra category shops
+        if (config.contains("categories")) {
+            for (String categoryKey : getConfig().getConfigurationSection("categories").getKeys(false)) {
+                String categoryPath = "categories." + categoryKey + ".";
+                String categoryTitle = ChatColor.translateAlternateColorCodes('&', 
+                    getConfig().getString(categoryPath + "title", "&6" + categoryKey));
 
-                    double price = config.getDouble(path + "price");
+                if (title.equals(categoryTitle)) {
+                    event.setCancelled(true);
 
-                    // Kiểm tra tiền của người chơi qua hệ thống Vault Economy
-                    if (econ.getBalance(player) >= price) {
-                        econ.withdrawPlayer(player, price); // Trừ tiền
-                        player.getInventory().addItem(new ItemStack(targetMat, 1)); // Phát đồ
-                        player.sendMessage(ChatColor.GREEN + "[LegendaryShop] Mua thành công vật phẩm!");
-                    } else {
-                        player.sendMessage(ChatColor.RED + "[LegendaryShop] Bạn không có đủ tiền để mua vật phẩm này!");
+                    if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) {
+                        return;
                     }
-                    player.closeInventory(); // Đóng giao diện sau khi click
+
+                    int slot = event.getSlot();
+
+                    if (getConfig().contains(categoryPath + "items." + slot)) {
+                        String itemPath = categoryPath + "items." + slot + ".";
+                        String materialName = getConfig().getString(itemPath + "material");
+                        double price = getConfig().getDouble(itemPath + "price", 0);
+
+                        Material mat = Material.matchMaterial(materialName);
+                        if (mat == null) return;
+
+                        // Kiểm tra tiền
+                        if (econ.getBalance(player) >= price) {
+                            econ.withdrawPlayer(player, price);
+                            player.getInventory().addItem(new ItemStack(mat, 1));
+                            player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + price + " xu");
+                        } else {
+                            player.sendMessage(ChatColor.RED + "✗ Bạn không có đủ tiền! Cần " + price + " xu");
+                        }
+                        player.closeInventory();
+                    }
                     return;
                 }
             }
@@ -210,12 +316,26 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!command.getName().equalsIgnoreCase("shop")) {
+            return new ArrayList<>();
+        }
+
         if (args.length == 1) {
             return Arrays.asList("admin", "reload");
         }
+
         if (args.length == 2 && args[0].equalsIgnoreCase("admin")) {
             return Arrays.asList("add", "remove", "set");
         }
+
+        if (args.length == 3 && args[0].equalsIgnoreCase("admin")) {
+            return null; // Hiển thị danh sách player online
+        }
+
         return new ArrayList<>();
+    }
+
+    public FileConfiguration getConfig() {
+        return super.getConfig();
     }
 }
