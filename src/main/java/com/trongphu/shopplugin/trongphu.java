@@ -250,10 +250,11 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
     public void onInventoryClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
         String title = event.getView().getTitle();
+        FileConfiguration config = getConfig();
 
         // Kiểm tra main menu
         String mainTitle = ChatColor.translateAlternateColorCodes('&', 
-            getConfig().getString("main-menu.title", "&6Shop"));
+            config.getString("main-menu.title", "&6Shop"));
         
         if (title.equals(mainTitle)) {
             event.setCancelled(true);
@@ -263,7 +264,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
             }
 
             int slot = event.getSlot();
-            FileConfiguration config = getConfig();
 
             if (config.contains("main-menu.items." + slot)) {
                 String category = config.getString("main-menu.items." + slot + ".category");
@@ -276,10 +276,10 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
         // Kiểm tra category shops
         if (config.contains("categories")) {
-            for (String categoryKey : getConfig().getConfigurationSection("categories").getKeys(false)) {
+            for (String categoryKey : config.getConfigurationSection("categories").getKeys(false)) {
                 String categoryPath = "categories." + categoryKey + ".";
                 String categoryTitle = ChatColor.translateAlternateColorCodes('&', 
-                    getConfig().getString(categoryPath + "title", "&6" + categoryKey));
+                    config.getString(categoryPath + "title", "&6" + categoryKey));
 
                 if (title.equals(categoryTitle)) {
                     event.setCancelled(true);
@@ -290,10 +290,10 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
                     int slot = event.getSlot();
 
-                    if (getConfig().contains(categoryPath + "items." + slot)) {
+                    if (config.contains(categoryPath + "items." + slot)) {
                         String itemPath = categoryPath + "items." + slot + ".";
-                        String materialName = getConfig().getString(itemPath + "material");
-                        double price = getConfig().getDouble(itemPath + "price", 0);
+                        String materialName = config.getString(itemPath + "material");
+                        double price = config.getDouble(itemPath + "price", 0);
 
                         Material mat = Material.matchMaterial(materialName);
                         if (mat == null) return;
