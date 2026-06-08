@@ -294,6 +294,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         String itemPath = categoryPath + "items." + slot + ".";
                         String materialName = config.getString(itemPath + "material");
                         double price = config.getDouble(itemPath + "price", 0);
+                        String mobType = config.getString(itemPath + "mob-type"); // Kiểm tra spawner
 
                         Material mat = Material.matchMaterial(materialName);
                         if (mat == null) return;
@@ -301,8 +302,17 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         // Kiểm tra tiền
                         if (econ.getBalance(player) >= price) {
                             econ.withdrawPlayer(player, price);
-                            player.getInventory().addItem(new ItemStack(mat, 1));
-                            player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + price + " 💲");
+                            
+                            // Nếu là spawner, dùng SmartSpawner command
+                            if (mobType != null && !mobType.isEmpty()) {
+                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), 
+                                    "smartspawner give " + player.getName() + " " + mobType + " 1");
+                                player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + price + " 💲");
+                            } else {
+                                // Item thường
+                                player.getInventory().addItem(new ItemStack(mat, 1));
+                                player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + price + " 💲");
+                            }
                         } else {
                             player.sendMessage(ChatColor.RED + "✗ Bạn không có đủ tiền! Cần " + price + " 💲");
                         }
