@@ -1,5 +1,6 @@
 package com.trongphu.shopplugin;
 
+import me.clip.placeholderapi.PlaceholderAPI;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -211,6 +212,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                     String displayName = ChatColor.translateAlternateColorCodes('&', 
                         config.getString(itemPath + "name", "Item"));
                     double price = config.getDouble(itemPath + "price", 0);
+                    boolean useShards = config.getBoolean(itemPath + "use-shards", false);
 
                     Material mat = Material.matchMaterial(materialName);
                     if (mat == null) continue;
@@ -220,7 +222,8 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                     if (meta != null) {
                         meta.setDisplayName(displayName.replaceAll("\"", ""));
                         List<String> lore = new ArrayList<>();
-                        lore.add(ChatColor.GREEN + "Giá: " + (int)price + " 💲");
+                        String symbol = useShards ? "💎" : "💲";
+                        lore.add(ChatColor.GREEN + "Giá: " + (int)price + " " + symbol);
                         meta.setLore(lore);
                         item.setItemMeta(meta);
                     }
@@ -283,21 +286,37 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         String materialName = config.getString(itemPath + "material");
                         double price = config.getDouble(itemPath + "price", 0);
                         String mobType = config.getString(itemPath + "mob-type");
+                        boolean useShards = config.getBoolean(itemPath + "use-shards", false);
 
                         Material mat = Material.matchMaterial(materialName);
                         if (mat == null) return;
 
-                        // ✅ Kiểm tra tiền TRƯỚC khi mua
-                        if (econ.getBalance(player) < price) {
-                            player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ tiền!");
-                            player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int)econ.getBalance(player) + " 💲");
-                            player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int)price + " 💲");
-                            player.closeInventory();
-                            return;
+                        // ✅ Kiểm tra tiền/shard TRƯỚC khi mua
+                        if (useShards) {
+                            double playerShards = getPlayerShards(player);
+                            if (playerShards < price) {
+                                player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ Shard!");
+                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int)playerShards);
+                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int)price);
+                                player.closeInventory();
+                                return;
+                            }
+                        } else {
+                            if (econ.getBalance(player) < price) {
+                                player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ tiền!");
+                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int)econ.getBalance(player) + " 💲");
+                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int)price + " 💲");
+                                player.closeInventory();
+                                return;
+                            }
                         }
 
-                        // ✅ Trừ tiền
-                        econ.withdrawPlayer(player, price);
+                        // ✅ Trừ tiền/shard
+                        if (useShards) {
+                            removeShards(player, price);
+                        } else {
+                            econ.withdrawPlayer(player, price);
+                        }
                         
                         // Nếu là spawner
                         if (mobType != null && !mobType.isEmpty()) {
@@ -311,7 +330,8 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         } else {
                             // Item thường
                             player.getInventory().addItem(new ItemStack(mat, 1));
-                            player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + (int)price + " 💲");
+                            String currencySymbol = useShards ? "💎" : "💲";
+                            player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + (int)price + " " + currencySymbol);
                         }
                         
                         player.closeInventory();
@@ -342,4 +362,51 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
     public FileConfiguration getConfig() {
         return super.getConfig();
     }
+
+    /**
+     * Lấy số Shard THỰC TẾ của player từ PlaceholderAPI
+     */
+    private double getPlayerShards(Player player) {
+        try {
+            if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null ||
+                Bukkit.getPluginManager().getPlugin("xShards") == null) {
+                return 0;
+            }
+
+            String shardStr = PlaceholderAPI.setPlaceholders(player, "%xshards_balance%");
+            
+            if (shardStr == null || shardStr.isEmpty() || shardStr.equals("%xshards_balance%")) {
+                return 0;
+            }
+
+            return Double.parseDouble(shardStr);
+        } catch (NumberFormatException e) {
+            getLogger().severe("[LegendaryShop] Lỗi parse Shard: " + e.getMessage());
+            return 0;
+        } catch (Exception e) {
+            getLogger().severe("[LegendaryShop] Lỗi lấy Shard: " + e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Trừ shards của player
+     */
+    private void removeShards(Player player, double amount) {
+        try {
+            if (Bukkit.getPluginManager().getPlugin("xShards") == null) {
+                getLogger().severe("[LegendaryShop] xShards plugin không tìm thấy!");
+                return;
+            }
+
+            String command = "shards take " + player.getName() + " " + (int)amount;
+            boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+            
+            getLogger().info("[LegendaryShop] Trừ Shard - Player: " + player.getName() + 
+                    ", Amount: " + (int)amount + ", Success: " + result);
+        } catch (Exception e) {
+            getLogger().severe("[LegendaryShop] Lỗi trừ Shard: " + e.getMessage());
+        }
+    }
+}
 }
