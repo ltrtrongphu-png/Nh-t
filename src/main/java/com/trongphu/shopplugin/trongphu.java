@@ -1,5 +1,6 @@
 package com.trongphu.shopplugin;
 
+import me.clip.placeholderapi.PlaceholderAPI;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -23,6 +24,7 @@ import java.util.*;
 public final class trongphu extends JavaPlugin implements Listener, TabCompleter {
 
     private static Economy econ = null;
+    private static final String PREFIX = ChatColor.GOLD + "[LegendaryShop] " + ChatColor.RESET;
 
     @Override
     public void onEnable() {
@@ -31,7 +33,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
         // Setup Vault Economy
         if (!setupEconomy()) {
-            getLogger().severe("Khong tim thay Vault! Vo hieu hoa plugin.");
+            getLogger().severe("Không tìm thấy Vault! Vô hiệu hóa plugin.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -42,7 +44,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         getCommand("shop").setTabCompleter(this);
 
         getLogger().info("========================================");
-        getLogger().info(" LegendaryShop Premium v2.6 - Kich Hoat!");
+        getLogger().info(" 🛍️  LegendaryShop Premium v2.7 - Fixed!");
         getLogger().info("========================================");
     }
 
@@ -73,7 +75,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                     return true;
                 }
                 reloadConfig();
-                sender.sendMessage(ChatColor.GREEN + "[LegendaryShop] Đã tải lại cấu hình!");
+                sender.sendMessage(ChatColor.GREEN + PREFIX + "Đã tải lại cấu hình!");
                 return true;
             }
 
@@ -298,47 +300,63 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         double price = config.getDouble(itemPath + "price", 0);
                         String mobType = config.getString(itemPath + "mob-type");
                         boolean useShards = config.getBoolean(itemPath + "use-shards", false);
+                        String itemName = config.getString(itemPath + "name", "Item");
 
                         Material mat = Material.matchMaterial(materialName);
                         if (mat == null) return;
 
-                        // Kiểm tra tiền hoặc shard
-                        boolean canAfford = useShards ? checkShards(player, price) : econ.getBalance(player) >= price;
-
-                        if (canAfford) {
-                            // Trừ tiền hoặc shard
-                            if (useShards) {
-                                removeShards(player, price);
-                            } else {
-                                econ.withdrawPlayer(player, price);
-                            }
+                        // ✅ FIX: Kiểm tra tiền/shard TRƯỚC khi mua
+                        if (useShards) {
+                            // Kiểm tra shard
+                            double playerShards = getPlayerShards(player);
                             
-                            // Nếu là spawner, dùng SmartSpawner command
-                            if (mobType != null && !mobType.isEmpty()) {
-                                try {
-                                    // Delay 1 tick để ensure player loaded
-                                    Bukkit.getScheduler().scheduleSyncDelayedTask(this, () -> {
-                                        String command = "ss give spawner " + player.getName() + " " + mobType + " 1";
-                                        getLogger().warning("[LegendaryShop DEBUG] Command: " + command);
-                                        boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-                                        getLogger().warning("[LegendaryShop DEBUG] Command executed: " + result);
-                                    }, 1L);
-                                    
-                                    player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã nhận spawner!");
-                                } catch (Exception e) {
-                                    getLogger().severe("[LegendaryShop ERROR] " + e.getMessage());
-                                    player.sendMessage(ChatColor.RED + "✗ Lỗi khi cấp spawner! Liên hệ admin.");
-                                }
-                            } else {
-                                // Item thường
-                                player.getInventory().addItem(new ItemStack(mat, 1));
-                                String currencySymbol = useShards ? "💎" : "💲";
-                                player.sendMessage(ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + (int)price + " " + currencySymbol);
+                            if (playerShards < price) {
+                                player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ Shard!");
+                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int)playerShards);
+                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int)price);
+                                player.closeInventory();
+                                return; // Hủy transaction
                             }
                         } else {
-                            String currencySymbol = useShards ? "💎 Shard" : "💲";
-                            player.sendMessage(ChatColor.RED + "✗ Bạn không có đủ " + currencySymbol + "! Cần " + (int)price);
+                            // Kiểm tra tiền
+                            if (econ.getBalance(player) < price) {
+                                player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ tiền!");
+                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int)econ.getBalance(player) + " 💲");
+                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int)price + " 💲");
+                                player.closeInventory();
+                                return; // Hủy transaction
+                            }
                         }
+
+                        // ✅ FIX: Nếu đủ tiền, mới thực hiện trừ
+                        if (useShards) {
+                            removeShards(player, price);
+                        } else {
+                            econ.withdrawPlayer(player, price);
+                        }
+                        
+                        // Nếu là spawner, dùng SmartSpawner command
+                        if (mobType != null && !mobType.isEmpty()) {
+                            try {
+                                Bukkit.getScheduler().scheduleSyncDelayedTask(this, () -> {
+                                    String command = "ss give spawner " + player.getName() + " " + mobType + " 1";
+                                    boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                                    getLogger().info("[LegendaryShop] " + player.getName() + " mua spawner: " + mobType + " - Success: " + result);
+                                }, 1L);
+                                
+                                player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Mua thành công! Đã nhận spawner!");
+                            } catch (Exception e) {
+                                getLogger().severe("[LegendaryShop ERROR] " + e.getMessage());
+                                player.sendMessage(PREFIX + ChatColor.RED + "✗ Lỗi khi cấp spawner! Liên hệ admin.");
+                                e.printStackTrace();
+                            }
+                        } else {
+                            // Item thường
+                            player.getInventory().addItem(new ItemStack(mat, 1));
+                            String currencySymbol = useShards ? "💎" : "💲";
+                            player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + (int)price + " " + currencySymbol);
+                        }
+                        
                         player.closeInventory();
                     }
                     return;
@@ -368,35 +386,60 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         return new ArrayList<>();
     }
 
-        public FileConfiguration getConfig() {
+    public FileConfiguration getConfig() {
         return super.getConfig();
     }
 
-    // Kiểm tra shards của player
-    private boolean checkShards(Player player, double amount) {
+    /**
+     * ✅ FIX: Lấy số Shard THỰC TẾ của player từ PlaceholderAPI
+     */
+    private double getPlayerShards(Player player) {
         try {
-            if (Bukkit.getPluginManager().getPlugin("xShards") == null) {
-                return false;
+            if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null ||
+                Bukkit.getPluginManager().getPlugin("xShards") == null) {
+                getLogger().warning("[LegendaryShop] PlaceholderAPI hoặc xShards không tìm thấy!");
+                return 0;
             }
-            // Dùng command để check
-            return true; // Giả định player có thể mua nếu plugin tồn tại
+
+            String shardStr = PlaceholderAPI.setPlaceholders(player, "%xshards_balance%");
+            
+            if (shardStr == null || shardStr.isEmpty() || shardStr.equals("%xshards_balance%")) {
+                getLogger().warning("[LegendaryShop] Không lấy được Shard của " + player.getName());
+                return 0;
+            }
+
+            return Double.parseDouble(shardStr);
+        } catch (NumberFormatException e) {
+            getLogger().severe("[LegendaryShop] Lỗi parse Shard: " + e.getMessage());
+            return 0;
         } catch (Exception e) {
-            return false;
+            getLogger().severe("[LegendaryShop] Lỗi lấy Shard: " + e.getMessage());
+            e.printStackTrace();
+            return 0;
         }
     }
 
-    // Trừ shards của player
+    /**
+     * ✅ FIX: Trừ shards với kiểm tra lỗi
+     */
     private void removeShards(Player player, double amount) {
         try {
-            if (Bukkit.getPluginManager().getPlugin("xShards") != null) {
-                String command = "shards take " + player.getName() + " " + (int)amount;
-                boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-                getLogger().warning("[LegendaryShop] Shards command - Executed: " + result + ", Command: " + command);
-            } else {
-                getLogger().warning("[LegendaryShop] xShards plugin not found!");
+            if (Bukkit.getPluginManager().getPlugin("xShards") == null) {
+                getLogger().severe("[LegendaryShop] xShards plugin không tìm thấy!");
+                return;
+            }
+
+            String command = "shards take " + player.getName() + " " + (int)amount;
+            boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+            
+            getLogger().info("[LegendaryShop] Trừ Shard - Player: " + player.getName() + 
+                    ", Amount: " + (int)amount + ", Success: " + result);
+            
+            if (!result) {
+                player.sendMessage(PREFIX + ChatColor.RED + "⚠️ Lỗi khi trừ Shard! Liên hệ admin.");
             }
         } catch (Exception e) {
-            getLogger().severe("[LegendaryShop] Error removing shards: " + e.getMessage());
+            getLogger().severe("[LegendaryShop] Lỗi trừ Shard: " + e.getMessage());
             e.printStackTrace();
         }
     }
