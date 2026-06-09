@@ -41,7 +41,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         getCommand("shop").setTabCompleter(this);
 
         getLogger().info("========================================");
-        getLogger().info(" 🛍️  LegendaryShop Premium v2.7 - Fixed!");
+        getLogger().info(" 🛍️  LegendaryShop Premium v2.7 - Ready!");
         getLogger().info("========================================");
     }
 
@@ -322,7 +322,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         if (mobType != null && !mobType.isEmpty()) {
                             Bukkit.getScheduler().scheduleSyncDelayedTask(this, () -> {
                                 String command = "ss give spawner " + player.getName() + " " + mobType + " 1";
-                                boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
                                 getLogger().info("[LegendaryShop] " + player.getName() + " mua spawner: " + mobType);
                             }, 1L);
                             
@@ -357,10 +357,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         }
 
         return new ArrayList<>();
-    }
-
-    public FileConfiguration getConfig() {
-        return super.getConfig();
     }
 
     /**
@@ -408,5 +404,4 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
             getLogger().severe("[LegendaryShop] Lỗi trừ Shard: " + e.getMessage());
         }
     }
-}
 }
