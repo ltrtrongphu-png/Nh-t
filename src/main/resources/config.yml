@@ -1,4 +1,4 @@
-# LegendaryShop Premium v1.0 Configuration
+# LegendaryShop v1.0 Configuration
 
 # Main Menu Settings
 main-menu:
@@ -237,3 +237,45 @@ categories:
         price: 700.0
         mob-type: blaze
         use-shards: true
+
+# ─────────────────────────────────────────
+# Giá bán (/sell) — giá mỗi 1 item
+# Tên key phải khớp chính xác với Material enum của Bukkit
+# Xóa dòng nào để item đó không thể bán
+# ─────────────────────────────────────────
+sell-prices:
+  # End
+  ENDER_PEARL: 40.0
+  END_STONE: 4.0
+  DRAGON_BREATH: 500.0
+  END_ROD: 50.0
+  CHORUS_FRUIT: 54.0
+  POPPED_CHORUS_FRUIT: 12.0
+  SHULKER_SHELL: 175.0
+
+  # Nether
+  BLAZE_ROD: 75.0
+  NETHER_WART: 48.0
+  GLOWSTONE_DUST: 7.0
+  MAGMA_CREAM: 48.0
+  GHAST_TEAR: 175.0
+  QUARTZ: 15.0
+  SOUL_SAND: 25.0
+  MAGMA_BLOCK: 17.0
+  CRYING_OBSIDIAN: 75.0
+
+  # Gear / Misc
+  OBSIDIAN: 50.0
+  GLOWSTONE: 50.0
+  GOLDEN_APPLE: 125.0
+  EXPERIENCE_BOTTLE: 50.0
+
+  # Food
+  POTATO: 48.0
+  SWEET_BERRIES: 25.0
+  MELON_SLICE: 18.0
+  CARROT: 48.0
+  APPLE: 12.0
+  COOKED_CHICKEN: 24.0
+  COOKED_BEEF: 17.0
+  GOLDEN_CARROT: 60.0
