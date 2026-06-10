@@ -1,9 +1,25 @@
-name: LegendaryShop 
-version: 2.6
+name: LegendaryShop
+version: 2.8
 main: com.trongphu.shopplugin.trongphu
 api-version: '1.21'
 depend: [Vault]
+softdepend: [PlaceholderAPI, xShards]
+
 commands:
   shop:
     description: Lệnh chính mở cửa hàng ảo hoặc quản trị viên.
     usage: /shop [admin/reload]
+  sell:
+    description: Bán item lấy tiền.
+    usage: /sell [hand|all]
+
+permissions:
+  legendaryshop.use:
+    description: Cho phép mở cửa hàng (/shop)
+    default: true
+  legendaryshop.sell:
+    description: Cho phép dùng lệnh /sell
+    default: true
+  legendaryshop.admin:
+    description: Cho phép dùng /shop admin và /shop reload
+    default: op
