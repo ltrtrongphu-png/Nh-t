@@ -26,6 +26,9 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
     private static Economy econ = null;
     private static final String PREFIX = ChatColor.GOLD + "[LegendaryShop] " + ChatColor.RESET;
 
+    // Tiêu đề GUI bán đồ - dùng để nhận diện inventory
+    private static final String SELL_GUI_TITLE = ChatColor.DARK_GREEN + "💰 Bán Đồ - Đặt Vào Đây";
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
@@ -39,9 +42,11 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("shop").setExecutor(this);
         getCommand("shop").setTabCompleter(this);
+        getCommand("sell").setExecutor(this);
+        getCommand("sell").setTabCompleter(this);
 
         getLogger().info("========================================");
-        getLogger().info(" 🛍️  LegendaryShop Premium v2.7 - Ready!");
+        getLogger().info(" 🛍️  LegendaryShop Premium v2.8 - Ready!");
         getLogger().info("========================================");
     }
 
@@ -59,6 +64,38 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+
+        // ─────────────── /sell ───────────────
+        if (command.getName().equalsIgnoreCase("sell")) {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage(ChatColor.RED + "Lệnh này chỉ dành cho người chơi!");
+                return true;
+            }
+            Player player = (Player) sender;
+
+            if (!player.hasPermission("legendaryshop.sell")) {
+                player.sendMessage(PREFIX + ChatColor.RED + "Bạn không có quyền bán đồ!");
+                return true;
+            }
+
+            // /sell hand  →  bán item đang cầm
+            if (args.length > 0 && args[0].equalsIgnoreCase("hand")) {
+                sellHandItem(player);
+                return true;
+            }
+
+            // /sell all   →  bán tất cả item có thể bán trong inventory
+            if (args.length > 0 && args[0].equalsIgnoreCase("all")) {
+                sellAllItems(player);
+                return true;
+            }
+
+            // /sell (không có arg) → mở GUI kéo đồ vào bán
+            openSellGui(player);
+            return true;
+        }
+
+        // ─────────────── /shop ───────────────
         if (!command.getName().equalsIgnoreCase("shop")) {
             return false;
         }
@@ -139,6 +176,306 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         return true;
     }
 
+    // ══════════════════════════════════════════════════
+    //  SELL - bán item đang cầm tay (/sell hand)
+    // ══════════════════════════════════════════════════
+    private void sellHandItem(Player player) {
+        ItemStack hand = player.getInventory().getItemInMainHand();
+
+        if (hand == null || hand.getType() == Material.AIR) {
+            player.sendMessage(PREFIX + ChatColor.RED + "Bạn không cầm gì trong tay!");
+            return;
+        }
+
+        double pricePerUnit = getSellPrice(hand.getType());
+        if (pricePerUnit <= 0) {
+            player.sendMessage(PREFIX + ChatColor.RED + "❌ Item này không thể bán!");
+            return;
+        }
+
+        int qty = hand.getAmount();
+        double totalEarned = pricePerUnit * qty;
+
+        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
+        econ.depositPlayer(player, totalEarned);
+
+        player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Đã bán " + ChatColor.WHITE + qty + "x "
+                + formatMaterial(hand.getType()) + ChatColor.GREEN + " với giá "
+                + ChatColor.YELLOW + (int) totalEarned + " 💲");
+    }
+
+    // ══════════════════════════════════════════════════
+    //  SELL - bán tất cả item có thể bán (/sell all)
+    // ══════════════════════════════════════════════════
+    private void sellAllItems(Player player) {
+        double totalEarned = 0;
+        int totalItems = 0;
+
+        ItemStack[] contents = player.getInventory().getContents();
+        for (int i = 0; i < contents.length; i++) {
+            ItemStack item = contents[i];
+            if (item == null || item.getType() == Material.AIR) continue;
+
+            double pricePerUnit = getSellPrice(item.getType());
+            if (pricePerUnit <= 0) continue;
+
+            totalEarned += pricePerUnit * item.getAmount();
+            totalItems += item.getAmount();
+            contents[i] = new ItemStack(Material.AIR);
+        }
+
+        if (totalItems == 0) {
+            player.sendMessage(PREFIX + ChatColor.RED + "❌ Không có item nào có thể bán!");
+            return;
+        }
+
+        player.getInventory().setContents(contents);
+        econ.depositPlayer(player, totalEarned);
+
+        player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Đã bán " + ChatColor.WHITE + totalItems
+                + " item" + ChatColor.GREEN + " và nhận được "
+                + ChatColor.YELLOW + (int) totalEarned + " 💲");
+    }
+
+    // ══════════════════════════════════════════════════
+    //  SELL GUI - mở cửa sổ kéo đồ vào bán (/sell)
+    // ══════════════════════════════════════════════════
+    private void openSellGui(Player player) {
+        // Inventory 4 hàng (36 slot): 27 slot trên để đặt đồ, hàng cuối là nút xác nhận
+        Inventory inv = Bukkit.createInventory(null, 36, SELL_GUI_TITLE);
+
+        // Điền filler vào hàng cuối (slot 27-35)
+        ItemStack filler = makeFiller();
+        for (int i = 27; i < 36; i++) {
+            inv.setItem(i, filler);
+        }
+
+        // Nút xác nhận bán (slot 31 - giữa hàng cuối)
+        ItemStack confirmBtn = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
+        ItemMeta cm = confirmBtn.getItemMeta();
+        if (cm != null) {
+            cm.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + "✔ XÁC NHẬN BÁN");
+            cm.setLore(Arrays.asList(
+                    ChatColor.GRAY + "Đặt đồ vào các ô phía trên",
+                    ChatColor.GRAY + "rồi nhấn nút này để bán."
+            ));
+            confirmBtn.setItemMeta(cm);
+        }
+        inv.setItem(31, confirmBtn);
+
+        player.openInventory(inv);
+        player.sendMessage(PREFIX + ChatColor.YELLOW + "Đặt đồ vào ô trống rồi nhấn nút xanh để bán.");
+    }
+
+    // ══════════════════════════════════════════════════
+    //  InventoryClickEvent
+    // ══════════════════════════════════════════════════
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        Player player = (Player) event.getWhoClicked();
+        String title = event.getView().getTitle();
+        FileConfiguration config = getConfig();
+
+        // ── Xử lý SELL GUI ──
+        if (title.equals(SELL_GUI_TITLE)) {
+            int slot = event.getSlot();
+
+            // Chặn click vào hàng filler/nút (slot 27-35) trừ nút xác nhận
+            if (slot >= 27 && slot <= 35) {
+                event.setCancelled(true);
+
+                // Nút xác nhận bán (slot 31)
+                if (slot == 31) {
+                    processSellGui(player, event.getView().getTopInventory());
+                }
+            }
+            // Slot 0-26: cho phép người chơi kéo đồ vào/ra tự do (không cancel)
+            return;
+        }
+
+        // ── Xử lý SHOP Main Menu ──
+        String mainTitle = ChatColor.translateAlternateColorCodes('&',
+                config.getString("main-menu.title", "&6Shop"));
+
+        if (title.equals(mainTitle)) {
+            event.setCancelled(true);
+
+            if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) {
+                return;
+            }
+
+            int slot = event.getSlot();
+            if (config.contains("main-menu.items." + slot)) {
+                String category = config.getString("main-menu.items." + slot + ".category");
+                if (category != null) {
+                    openCategoryShop(player, category);
+                }
+            }
+            return;
+        }
+
+        // ── Xử lý SHOP Category ──
+        if (config.contains("categories")) {
+            for (String categoryKey : config.getConfigurationSection("categories").getKeys(false)) {
+                String categoryPath = "categories." + categoryKey + ".";
+                String categoryTitle = ChatColor.translateAlternateColorCodes('&',
+                        config.getString(categoryPath + "title", "&6" + categoryKey));
+
+                if (!title.equals(categoryTitle)) continue;
+
+                event.setCancelled(true);
+
+                if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) {
+                    return;
+                }
+
+                int slot = event.getSlot();
+                if (!config.contains(categoryPath + "items." + slot)) return;
+
+                String itemPath = categoryPath + "items." + slot + ".";
+                String materialName = config.getString(itemPath + "material");
+                double price = config.getDouble(itemPath + "price", 0);
+                String mobType = config.getString(itemPath + "mob-type");
+                boolean useShards = config.getBoolean(itemPath + "use-shards", false);
+
+                Material mat = Material.matchMaterial(materialName);
+                if (mat == null) return;
+
+                if (useShards) {
+                    double playerShards = getPlayerShards(player);
+                    if (playerShards < price) {
+                        player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ Shard!");
+                        player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int) playerShards);
+                        player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int) price);
+                        player.closeInventory();
+                        return;
+                    }
+                } else {
+                    if (econ.getBalance(player) < price) {
+                        player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ tiền!");
+                        player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int) econ.getBalance(player) + " 💲");
+                        player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int) price + " 💲");
+                        player.closeInventory();
+                        return;
+                    }
+                }
+
+                if (useShards) {
+                    removeShards(player, price);
+                } else {
+                    econ.withdrawPlayer(player, price);
+                }
+
+                if (mobType != null && !mobType.isEmpty()) {
+                    Bukkit.getScheduler().scheduleSyncDelayedTask(this, () -> {
+                        String cmd = "ss give spawner " + player.getName() + " " + mobType + " 1";
+                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                        getLogger().info("[LegendaryShop] " + player.getName() + " mua spawner: " + mobType);
+                    }, 1L);
+                    player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Mua thành công! Đã nhận spawner!");
+                } else {
+                    player.getInventory().addItem(new ItemStack(mat, 1));
+                    String currencySymbol = useShards ? "💎" : "💲";
+                    player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + (int) price + " " + currencySymbol);
+                }
+
+                player.closeInventory();
+                return;
+            }
+        }
+    }
+
+    /**
+     * Xử lý khi người chơi nhấn nút xác nhận trong SELL GUI.
+     * Quét 27 slot trên, tính tiền, trả tiền, trả lại item không bán được.
+     */
+    private void processSellGui(Player player, Inventory sellInv) {
+        double totalEarned = 0;
+        int totalSold = 0;
+        List<ItemStack> unsellable = new ArrayList<>();
+
+        for (int i = 0; i < 27; i++) {
+            ItemStack item = sellInv.getItem(i);
+            if (item == null || item.getType() == Material.AIR) continue;
+
+            double pricePerUnit = getSellPrice(item.getType());
+            if (pricePerUnit > 0) {
+                totalEarned += pricePerUnit * item.getAmount();
+                totalSold += item.getAmount();
+                sellInv.setItem(i, null);
+            } else {
+                unsellable.add(item.clone());
+                sellInv.setItem(i, null);
+            }
+        }
+
+        player.closeInventory();
+
+        // Trả lại item không bán được
+        for (ItemStack leftover : unsellable) {
+            Map<Integer, ItemStack> overflow = player.getInventory().addItem(leftover);
+            for (ItemStack drop : overflow.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), drop);
+            }
+        }
+
+        if (totalSold == 0) {
+            player.sendMessage(PREFIX + ChatColor.RED + "❌ Không có item nào có thể bán trong ô bán đồ!");
+            return;
+        }
+
+        econ.depositPlayer(player, totalEarned);
+        player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Đã bán " + ChatColor.WHITE + totalSold
+                + " item" + ChatColor.GREEN + " và nhận được "
+                + ChatColor.YELLOW + (int) totalEarned + " 💲");
+
+        if (!unsellable.isEmpty()) {
+            player.sendMessage(PREFIX + ChatColor.RED + "⚠ " + unsellable.size()
+                    + " loại item không thể bán và đã được trả về túi đồ.");
+        }
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Lấy giá bán từ config
+    //  Config path: sell-prices.<MATERIAL_NAME>: <price>
+    // ══════════════════════════════════════════════════
+    private double getSellPrice(Material material) {
+        FileConfiguration config = getConfig();
+        String key = "sell-prices." + material.name();
+        if (config.contains(key)) {
+            return config.getDouble(key, 0);
+        }
+        return 0;
+    }
+
+    // ══════════════════════════════════════════════════
+    //  TabComplete
+    // ══════════════════════════════════════════════════
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (command.getName().equalsIgnoreCase("sell")) {
+            if (args.length == 1) {
+                return Arrays.asList("hand", "all");
+            }
+            return new ArrayList<>();
+        }
+
+        if (!command.getName().equalsIgnoreCase("shop")) {
+            return new ArrayList<>();
+        }
+
+        if (args.length == 1) {
+            return Arrays.asList("admin", "reload");
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("admin")) {
+            return Arrays.asList("add", "remove", "set");
+        }
+        return new ArrayList<>();
+    }
+
+    // ══════════════════════════════════════════════════
+    //  Helpers
+    // ══════════════════════════════════════════════════
     private void openMainMenu(Player player) {
         FileConfiguration config = getConfig();
 
@@ -147,8 +484,8 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
             return;
         }
 
-        String title = ChatColor.translateAlternateColorCodes('&', 
-            config.getString("main-menu.title", "&6Shop"));
+        String title = ChatColor.translateAlternateColorCodes('&',
+                config.getString("main-menu.title", "&6Shop"));
         int size = config.getInt("main-menu.size", 27);
 
         Inventory inv = Bukkit.createInventory(null, size, title);
@@ -156,14 +493,13 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         if (config.contains("main-menu.items")) {
             for (String key : config.getConfigurationSection("main-menu.items").getKeys(false)) {
                 String path = "main-menu.items." + key + ".";
-
                 try {
                     int slot = Integer.parseInt(key);
                     String materialName = config.getString(path + "material");
-                    String displayName = ChatColor.translateAlternateColorCodes('&', 
-                        config.getString(path + "name", "Item"));
-                    String lore = ChatColor.translateAlternateColorCodes('&', 
-                        config.getString(path + "lore", ""));
+                    String displayName = ChatColor.translateAlternateColorCodes('&',
+                            config.getString(path + "name", "Item"));
+                    String lore = ChatColor.translateAlternateColorCodes('&',
+                            config.getString(path + "lore", ""));
 
                     Material mat = Material.matchMaterial(materialName);
                     if (mat == null) continue;
@@ -175,15 +511,10 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         meta.setLore(Arrays.asList(lore));
                         item.setItemMeta(meta);
                     }
-
-                    if (slot >= 0 && slot < size) {
-                        inv.setItem(slot, item);
-                    }
-                } catch (NumberFormatException ignored) {
-                }
+                    if (slot >= 0 && slot < size) inv.setItem(slot, item);
+                } catch (NumberFormatException ignored) {}
             }
         }
-
         player.openInventory(inv);
     }
 
@@ -196,21 +527,19 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
             return;
         }
 
-        String title = ChatColor.translateAlternateColorCodes('&', 
-            config.getString(path + "title", "&6" + category));
+        String title = ChatColor.translateAlternateColorCodes('&',
+                config.getString(path + "title", "&6" + category));
         int size = config.getInt(path + "size", 27);
-
         Inventory inv = Bukkit.createInventory(null, size, title);
 
         if (config.contains(path + "items")) {
             for (String key : config.getConfigurationSection(path + "items").getKeys(false)) {
                 String itemPath = path + "items." + key + ".";
-
                 try {
                     int slot = Integer.parseInt(key);
                     String materialName = config.getString(itemPath + "material");
-                    String displayName = ChatColor.translateAlternateColorCodes('&', 
-                        config.getString(itemPath + "name", "Item"));
+                    String displayName = ChatColor.translateAlternateColorCodes('&',
+                            config.getString(itemPath + "name", "Item"));
                     double price = config.getDouble(itemPath + "price", 0);
                     boolean useShards = config.getBoolean(itemPath + "use-shards", false);
 
@@ -223,183 +552,67 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                         meta.setDisplayName(displayName.replaceAll("\"", ""));
                         List<String> lore = new ArrayList<>();
                         String symbol = useShards ? "💎" : "💲";
-                        lore.add(ChatColor.GREEN + "Giá: " + (int)price + " " + symbol);
+                        lore.add(ChatColor.GREEN + "Giá: " + (int) price + " " + symbol);
                         meta.setLore(lore);
                         item.setItemMeta(meta);
                     }
-
-                    if (slot >= 0 && slot < size) {
-                        inv.setItem(slot, item);
-                    }
-                } catch (NumberFormatException ignored) {
-                }
+                    if (slot >= 0 && slot < size) inv.setItem(slot, item);
+                } catch (NumberFormatException ignored) {}
             }
         }
-
         player.openInventory(inv);
     }
 
-    @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        Player player = (Player) event.getWhoClicked();
-        String title = event.getView().getTitle();
-        FileConfiguration config = getConfig();
-
-        String mainTitle = ChatColor.translateAlternateColorCodes('&', 
-            config.getString("main-menu.title", "&6Shop"));
-        
-        if (title.equals(mainTitle)) {
-            event.setCancelled(true);
-
-            if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) {
-                return;
-            }
-
-            int slot = event.getSlot();
-
-            if (config.contains("main-menu.items." + slot)) {
-                String category = config.getString("main-menu.items." + slot + ".category");
-                if (category != null) {
-                    openCategoryShop(player, category);
-                }
-            }
-            return;
+    /** Tạo item filler (kính tối màu không có tên) */
+    private ItemStack makeFiller() {
+        ItemStack glass = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = glass.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(" ");
+            glass.setItemMeta(meta);
         }
-
-        if (config.contains("categories")) {
-            for (String categoryKey : config.getConfigurationSection("categories").getKeys(false)) {
-                String categoryPath = "categories." + categoryKey + ".";
-                String categoryTitle = ChatColor.translateAlternateColorCodes('&', 
-                    config.getString(categoryPath + "title", "&6" + categoryKey));
-
-                if (title.equals(categoryTitle)) {
-                    event.setCancelled(true);
-
-                    if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) {
-                        return;
-                    }
-
-                    int slot = event.getSlot();
-
-                    if (config.contains(categoryPath + "items." + slot)) {
-                        String itemPath = categoryPath + "items." + slot + ".";
-                        String materialName = config.getString(itemPath + "material");
-                        double price = config.getDouble(itemPath + "price", 0);
-                        String mobType = config.getString(itemPath + "mob-type");
-                        boolean useShards = config.getBoolean(itemPath + "use-shards", false);
-
-                        Material mat = Material.matchMaterial(materialName);
-                        if (mat == null) return;
-
-                        // ✅ Kiểm tra tiền/shard TRƯỚC khi mua
-                        if (useShards) {
-                            double playerShards = getPlayerShards(player);
-                            if (playerShards < price) {
-                                player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ Shard!");
-                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int)playerShards);
-                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int)price);
-                                player.closeInventory();
-                                return;
-                            }
-                        } else {
-                            if (econ.getBalance(player) < price) {
-                                player.sendMessage(PREFIX + ChatColor.RED + "❌ Không đủ tiền!");
-                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Bạn có: " + ChatColor.AQUA + (int)econ.getBalance(player) + " 💲");
-                                player.sendMessage(PREFIX + ChatColor.YELLOW + "Cần: " + ChatColor.AQUA + (int)price + " 💲");
-                                player.closeInventory();
-                                return;
-                            }
-                        }
-
-                        // ✅ Trừ tiền/shard
-                        if (useShards) {
-                            removeShards(player, price);
-                        } else {
-                            econ.withdrawPlayer(player, price);
-                        }
-                        
-                        // Nếu là spawner
-                        if (mobType != null && !mobType.isEmpty()) {
-                            Bukkit.getScheduler().scheduleSyncDelayedTask(this, () -> {
-                                String command = "ss give spawner " + player.getName() + " " + mobType + " 1";
-                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-                                getLogger().info("[LegendaryShop] " + player.getName() + " mua spawner: " + mobType);
-                            }, 1L);
-                            
-                            player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Mua thành công! Đã nhận spawner!");
-                        } else {
-                            // Item thường
-                            player.getInventory().addItem(new ItemStack(mat, 1));
-                            String currencySymbol = useShards ? "💎" : "💲";
-                            player.sendMessage(PREFIX + ChatColor.GREEN + "✓ Mua thành công! Đã trừ " + (int)price + " " + currencySymbol);
-                        }
-                        
-                        player.closeInventory();
-                    }
-                    return;
-                }
-            }
-        }
+        return glass;
     }
 
-    @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (!command.getName().equalsIgnoreCase("shop")) {
-            return new ArrayList<>();
+    /** Format tên Material cho đẹp: DIAMOND_SWORD → Diamond Sword */
+    private String formatMaterial(Material mat) {
+        String raw = mat.name().replace("_", " ");
+        StringBuilder sb = new StringBuilder();
+        for (String word : raw.split(" ")) {
+            if (!word.isEmpty()) {
+                sb.append(Character.toUpperCase(word.charAt(0)))
+                  .append(word.substring(1).toLowerCase())
+                  .append(" ");
+            }
         }
-
-        if (args.length == 1) {
-            return Arrays.asList("admin", "reload");
-        }
-
-        if (args.length == 2 && args[0].equalsIgnoreCase("admin")) {
-            return Arrays.asList("add", "remove", "set");
-        }
-
-        return new ArrayList<>();
+        return sb.toString().trim();
     }
 
-    /**
-     * Lấy số Shard THỰC TẾ của player từ PlaceholderAPI
-     */
     private double getPlayerShards(Player player) {
         try {
             if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null ||
-                Bukkit.getPluginManager().getPlugin("xShards") == null) {
+                    Bukkit.getPluginManager().getPlugin("xShards") == null) {
                 return 0;
             }
-
             String shardStr = PlaceholderAPI.setPlaceholders(player, "%xshards_balance%");
-            
-            if (shardStr == null || shardStr.isEmpty() || shardStr.equals("%xshards_balance%")) {
-                return 0;
-            }
-
+            if (shardStr == null || shardStr.isEmpty() || shardStr.equals("%xshards_balance%")) return 0;
             return Double.parseDouble(shardStr);
-        } catch (NumberFormatException e) {
-            getLogger().severe("[LegendaryShop] Lỗi parse Shard: " + e.getMessage());
-            return 0;
         } catch (Exception e) {
             getLogger().severe("[LegendaryShop] Lỗi lấy Shard: " + e.getMessage());
             return 0;
         }
     }
 
-    /**
-     * Trừ shards của player
-     */
     private void removeShards(Player player, double amount) {
         try {
             if (Bukkit.getPluginManager().getPlugin("xShards") == null) {
                 getLogger().severe("[LegendaryShop] xShards plugin không tìm thấy!");
                 return;
             }
-
-            String command = "shards take " + player.getName() + " " + (int)amount;
-            boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-            
-            getLogger().info("[LegendaryShop] Trừ Shard - Player: " + player.getName() + 
-                    ", Amount: " + (int)amount + ", Success: " + result);
+            String cmd = "shards take " + player.getName() + " " + (int) amount;
+            boolean result = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+            getLogger().info("[LegendaryShop] Trừ Shard - Player: " + player.getName()
+                    + ", Amount: " + (int) amount + ", Success: " + result);
         } catch (Exception e) {
             getLogger().severe("[LegendaryShop] Lỗi trừ Shard: " + e.getMessage());
         }
