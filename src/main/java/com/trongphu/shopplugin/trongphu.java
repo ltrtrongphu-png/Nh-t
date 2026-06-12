@@ -25,8 +25,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
     private static Economy econ = null;
     private static final String PREFIX = ChatColor.GOLD + "[LegendaryShop] " + ChatColor.RESET;
-
-    // Tiêu đề GUI bán đồ - dùng để nhận diện inventory
     private static final String SELL_GUI_TITLE = ChatColor.DARK_GREEN + "💰 Bán Đồ - Đặt Vào Đây";
 
     @Override
@@ -78,19 +76,16 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                 return true;
             }
 
-            // /sell hand  →  bán item đang cầm
             if (args.length > 0 && args[0].equalsIgnoreCase("hand")) {
                 sellHandItem(player);
                 return true;
             }
 
-            // /sell all   →  bán tất cả item có thể bán trong inventory
             if (args.length > 0 && args[0].equalsIgnoreCase("all")) {
                 sellAllItems(player);
                 return true;
             }
 
-            // /sell (không có arg) → mở GUI kéo đồ vào bán
             openSellGui(player);
             return true;
         }
@@ -176,9 +171,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         return true;
     }
 
-    // ══════════════════════════════════════════════════
-    //  SELL - bán item đang cầm tay (/sell hand)
-    // ══════════════════════════════════════════════════
     private void sellHandItem(Player player) {
         ItemStack hand = player.getInventory().getItemInMainHand();
 
@@ -204,9 +196,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                 + ChatColor.YELLOW + (int) totalEarned + " 💲");
     }
 
-    // ══════════════════════════════════════════════════
-    //  SELL - bán tất cả item có thể bán (/sell all)
-    // ══════════════════════════════════════════════════
     private void sellAllItems(Player player) {
         double totalEarned = 0;
         int totalItems = 0;
@@ -237,20 +226,14 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                 + ChatColor.YELLOW + (int) totalEarned + " 💲");
     }
 
-    // ══════════════════════════════════════════════════
-    //  SELL GUI - mở cửa sổ kéo đồ vào bán (/sell)
-    // ══════════════════════════════════════════════════
     private void openSellGui(Player player) {
-        // Inventory 4 hàng (36 slot): 27 slot trên để đặt đồ, hàng cuối là nút xác nhận
         Inventory inv = Bukkit.createInventory(null, 36, SELL_GUI_TITLE);
 
-        // Điền filler vào hàng cuối (slot 27-35)
         ItemStack filler = makeFiller();
         for (int i = 27; i < 36; i++) {
             inv.setItem(i, filler);
         }
 
-        // Nút xác nhận bán (slot 31 - giữa hàng cuối)
         ItemStack confirmBtn = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
         ItemMeta cm = confirmBtn.getItemMeta();
         if (cm != null) {
@@ -267,9 +250,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         player.sendMessage(PREFIX + ChatColor.YELLOW + "Đặt đồ vào ô trống rồi nhấn nút xanh để bán.");
     }
 
-    // ══════════════════════════════════════════════════
-    //  InventoryClickEvent
-    // ══════════════════════════════════════════════════
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
@@ -280,16 +260,13 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         if (title.equals(SELL_GUI_TITLE)) {
             int slot = event.getSlot();
 
-            // Chặn click vào hàng filler/nút (slot 27-35) trừ nút xác nhận
             if (slot >= 27 && slot <= 35) {
                 event.setCancelled(true);
 
-                // Nút xác nhận bán (slot 31)
                 if (slot == 31) {
                     processSellGui(player, event.getView().getTopInventory());
                 }
             }
-            // Slot 0-26: cho phép người chơi kéo đồ vào/ra tự do (không cancel)
             return;
         }
 
@@ -385,10 +362,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         }
     }
 
-    /**
-     * Xử lý khi người chơi nhấn nút xác nhận trong SELL GUI.
-     * Quét 27 slot trên, tính tiền, trả tiền, trả lại item không bán được.
-     */
     private void processSellGui(Player player, Inventory sellInv) {
         double totalEarned = 0;
         int totalSold = 0;
@@ -411,7 +384,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
 
         player.closeInventory();
 
-        // Trả lại item không bán được
         for (ItemStack leftover : unsellable) {
             Map<Integer, ItemStack> overflow = player.getInventory().addItem(leftover);
             for (ItemStack drop : overflow.values()) {
@@ -420,7 +392,7 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         }
 
         if (totalSold == 0) {
-            player.sendMessage(PREFIX + ChatColor.RED + "❌ Không có item nào có thể bán trong ô bán đồ!");
+            player.sendMessage(PREFIX + ChatColor.RED + "❌ Không có item nào có thể bán!");
             return;
         }
 
@@ -430,15 +402,11 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
                 + ChatColor.YELLOW + (int) totalEarned + " 💲");
 
         if (!unsellable.isEmpty()) {
-            player.sendMessage(PREFIX + ChatColor.RED + "⚠ " + unsellable.size()
-                    + " loại item không thể bán và đã được trả về túi đồ.");
+            player.sendMessage(PREFIX + ChatColor.YELLOW + "⚠ " + unsellable.size()
+                    + " loại item không thể bán và đã được trả về.");
         }
     }
 
-    // ══════════════════════════════════════════════════
-    //  Lấy giá bán từ config
-    //  Config path: sell-prices.<MATERIAL_NAME>: <price>
-    // ══════════════════════════════════════════════════
     private double getSellPrice(Material material) {
         FileConfiguration config = getConfig();
         String key = "sell-prices." + material.name();
@@ -448,9 +416,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         return 0;
     }
 
-    // ══════════════════════════════════════════════════
-    //  TabComplete
-    // ══════════════════════════════════════════════════
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (command.getName().equalsIgnoreCase("sell")) {
@@ -473,9 +438,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         return new ArrayList<>();
     }
 
-    // ══════════════════════════════════════════════════
-    //  Helpers
-    // ══════════════════════════════════════════════════
     private void openMainMenu(Player player) {
         FileConfiguration config = getConfig();
 
@@ -563,7 +525,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         player.openInventory(inv);
     }
 
-    /** Tạo item filler (kính tối màu không có tên) */
     private ItemStack makeFiller() {
         ItemStack glass = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta meta = glass.getItemMeta();
@@ -574,7 +535,6 @@ public final class trongphu extends JavaPlugin implements Listener, TabCompleter
         return glass;
     }
 
-    /** Format tên Material cho đẹp: DIAMOND_SWORD → Diamond Sword */
     private String formatMaterial(Material mat) {
         String raw = mat.name().replace("_", " ");
         StringBuilder sb = new StringBuilder();
